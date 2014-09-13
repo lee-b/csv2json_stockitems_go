@@ -40,7 +40,7 @@ func TestStockDataCsvImport(t *testing.T) {
 func TestStockDataCSVUnmarshalledId(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
-	if stock_item.item_id != 111010 {
+	if stock_item.Item_id != 111010 {
 		t.Fail()
 	}
 }
@@ -48,7 +48,7 @@ func TestStockDataCSVUnmarshalledId(t *testing.T) {
 func TestStockDataCSVUnmarshalledDescription(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
-	if stock_item.description != "Coffee" {
+	if stock_item.Description != "Coffee" {
 		t.Fail()
 	}
 }
@@ -58,9 +58,9 @@ func TestStockDataCSVUnmarshalledPrice(t *testing.T) {
 
 	var expected_val Cents = 125
 
-	if stock_item.price != nil {
-		if *stock_item.price != expected_val {
-			fmt.Printf("stock_item.price is %d", *stock_item.price)
+	if stock_item.Price != nil {
+		if *stock_item.Price != expected_val {
+			fmt.Printf("stock_item.Price is %d", *stock_item.Price)
 			t.Fail()
 		}
 	} else {
@@ -73,9 +73,9 @@ func TestStockDataCSVUnmarshalledCost(t *testing.T) {
 
 	var expected_val Cents = 80
 
-	if stock_item.cost != nil {
-		if *stock_item.cost != expected_val {
-			fmt.Printf("stock_item.cost is %d", *stock_item.cost)
+	if stock_item.Cost != nil {
+		if *stock_item.Cost != expected_val {
+			fmt.Printf("stock_item.Cost is %d", *stock_item.Cost)
 			t.Fail()
 		}
 	} else {
@@ -86,7 +86,7 @@ func TestStockDataCSVUnmarshalledCost(t *testing.T) {
 func TestStockDataCSVUnmarshalledPriceType(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
-	switch stock_item.price_type {
+	switch stock_item.Price_type {
 	case PT_SYSTEM:
 		// OK
 	case PT_OPEN:

@@ -77,13 +77,13 @@ type ItemId int64
 //       for problems that haven't arisen yet (aka,
 //       "You won't need it")
 type StockItem struct {
-	item_id          ItemId
-	description      string
-	price            *Cents
-	cost             *Cents
-	price_type       PriceType
-	quantity_on_hand *Quantity
-	modifiers        [4]Modifier
+	Item_id          ItemId             `json:"id"`
+	Description      string             `json:"description"`
+	Price            *Cents             `json:"price"`
+	Cost             *Cents             `json:"cost"`
+	Price_type       PriceType          `json:"price_type"`
+	Quantity_on_hand *Quantity          `json:"quantity_on_hand"`
+	Modifiers        [4]Modifier
 }
 
 func CentsFromDollarString(s *string) (*Cents, error) {
@@ -201,8 +201,8 @@ func VerifyCsvFields(reader csv.Reader) error {
 }
 
 type Modifier struct {
-	name  *string
-	price Cents
+	Name  *string
+	Price Cents
 }
 
 func ModifierFromStrings(name_str_ptr, price_str_ptr *string) (*Modifier, error) {
@@ -224,8 +224,8 @@ func ModifierFromStrings(name_str_ptr, price_str_ptr *string) (*Modifier, error)
 	}
 
 	mod_ptr := new(Modifier)
-	mod_ptr.name = name_str_ptr
-	mod_ptr.price = *cents_ptr
+	mod_ptr.Name = name_str_ptr
+	mod_ptr.Price = *cents_ptr
 
 	return mod_ptr, nil
 }
@@ -250,18 +250,18 @@ func (item *StockItem) Unmarshall(reader csv.Reader) error {
 	if item_id_err != nil {
 		return item_id_err
 	}
-	item.item_id = ItemId(item_id_int64)
+	item.Item_id = ItemId(item_id_int64)
 
-	item.description = raw_dat[1]
+	item.Description = raw_dat[1]
 
 	var price_err error
-	item.price, price_err = CentsFromDollarString(&raw_dat[2])
+	item.Price, price_err = CentsFromDollarString(&raw_dat[2])
 	if price_err != nil {
 		return price_err
 	}
 
 	var cost_err error
-	item.cost, cost_err = CentsFromDollarString(&raw_dat[3])
+	item.Cost, cost_err = CentsFromDollarString(&raw_dat[3])
 	if cost_err != nil {
 		return cost_err
 	}
@@ -270,13 +270,13 @@ func (item *StockItem) Unmarshall(reader csv.Reader) error {
 	if price_type_err != nil {
 		return price_type_err
 	}
-	item.price_type = *price_type_ptr
+	item.Price_type = *price_type_ptr
 
 	quantity_ptr, quantity_err := QuantityFromString(&raw_dat[5])
 	if quantity_err != nil {
 		return quantity_err
 	}
-	item.quantity_on_hand = quantity_ptr
+	item.Quantity_on_hand = quantity_ptr
 
 	// load modifiers
 	const all_modifiers_start_idx = 6
@@ -292,7 +292,7 @@ func (item *StockItem) Unmarshall(reader csv.Reader) error {
 		if raw_dat_len-1 < modifier_idx+1 {
 			// half of the modifier is present, so report an error
 			name := raw_dat[modifier_idx]
-			err_msg := fmt.Sprintf("StockItem id %d's modifier #%d (name: %s) has only one of two fields present. Expected all fields, or none.", name, item.item_id, i)
+			err_msg := fmt.Sprintf("StockItem id %d's modifier #%d (name: %s) has only one of two fields present. Expected all fields, or none.", name, item.Item_id, i)
 			return errors.New(err_msg)
 		}
 
@@ -305,7 +305,7 @@ func (item *StockItem) Unmarshall(reader csv.Reader) error {
 		}
 
 		// mod loaded; set in modifiers array
-		item.modifiers[i] = *mod
+		item.Modifiers[i] = *mod
 	}
 
 	return nil
