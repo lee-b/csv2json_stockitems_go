@@ -3,7 +3,6 @@ package stockdatalib
 import (
 	"encoding/csv"
 	//	"encoding/json"
-	"math/big"
 	"strings"
 	"testing"
 )
@@ -18,17 +17,22 @@ func MakeDataReader(t *testing.T) *csv.Reader {
 func LoadFirstItem(t *testing.T) *StockItem {
 	stock_dat_reader := MakeDataReader(t)
 
+	columns_err := VerifyCsvFields(*stock_dat_reader)
+	if columns_err != nil {
+		t.Error(columns_err)
+	}
+
 	stock_item := new(StockItem)
 	unmarshall_err := stock_item.Unmarshall(*stock_dat_reader)
 	if unmarshall_err != nil {
-		t.Error("Couldn't unmarshall the first stock item")
+		t.Error(unmarshall_err)
 	}
 
 	return stock_item
 }
 
 func TestStockDataCsvImport(t *testing.T) {
-	rec := LoadFirstItem(t)
+	LoadFirstItem(t)
 }
 
 func TestStockDataCSVUnmarshalledId(t *testing.T) {
@@ -50,21 +54,27 @@ func TestStockDataCSVUnmarshalledDescription(t *testing.T) {
 func TestStockDataCSVUnmarshalledPrice(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
-	var expected_val big.Rat
-	expected_val.SetString("1.25", 10)
+	var expected_val Cents = 125
 
-	if big.Rat(stock_item.price) != expected_val {
-		t.Fail()
+	if stock_item.price != nil {
+		if *stock_item.price != expected_val {
+			t.Fail()
+		}
+	} else {
+		// Price is nil; that's OK
 	}
 }
 
 func TestStockDataCSVUnmarshalledCost(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
-	var expected_val big.Rat
-	expected_val.SetString("0.80", 10)
+	var expected_val Cents = 80
 
-	if big.Rat(stock_item.cost) != expected_val {
-		t.Fail()
+	if stock_item.cost != nil {
+		if *stock_item.cost != expected_val {
+			t.Fail()
+		}
+	} else {
+		// cost is Nil; that's OK
 	}
 }
