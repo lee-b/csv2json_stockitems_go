@@ -1,0 +1,67 @@
+Overview
+========
+
+Goals
+=====
+
+* Import stock item data from csv format
+* Export stock item data to json format
+* Extensible code (as per requirements)
+* Use go standard library facilities for actual csv/json I/O (to minimise new
+  code, and assist with extensibility)
+* Reusable code (partly to meet "extensible code", partly as best-practice)
+* Arbitrary-precision monetary values, to avoid:
+    a) floating point precision issues;
+    b) the need for re-writing everything if a new precision is specified
+       in future, for a different currency, for example
+* Unit-tested
+* Functionally tested on actual data files
+* Verified against given scenario
+* Verified on larger data set, proving streaming/big data should work
+* "Production-ready", although this is a vague term without knowing requirements
+  of the production environment in question.  The requirements I've assumed are:
+    a) big data (stream-based processing rather than loading all data into memory
+       at once)
+    b) reliability, as specified above in terms of tests, required features, etc.
+
+
+Non-goals & assumptions
+=======================
+
+* Currency tracking and conversion is not a goal: input file has currency symbols,
+  but they are all the same (dollars) and the output doesn't have an notion of
+  currency, which suggests that this is not cared about for the purposes of the
+  test.
+* Fractional quantities for stock_on_hand is not a goal.  Not specified, assumed
+  units.
+* Perfectly idiomatic Go (preferred style, preferred design patterns, etc.) is
+  not a goal. I do not know Go yet, researching Go idioms extensively for all
+  parts of the code could take too much time for the purposes of this test.
+  Attempts have been made where reasonable, though, such as using JSON Reader/
+  Writer, using iota rather than simply typing values, etc.
+* A serialisation-style interface to the input CSV parsing, mirroring the
+  marshalling of JSON output, would be ideal, especially for extensibility. Only
+  a token version of this has been implemented (StockItem.Unmarshall), as it's
+  not clear how future extensibility should work at present.
+
+
+Design
+======
+
+* Library of reusable code, independent of front-end, allowing code to be
+  used in larger applications, and extended to new models / data types,
+  without calling a command line program.  Library contains:
+    a) a definition of the StockItem structure
+    b) Sub-definitions for monetary types and Modifiers
+    c) Helper functions to marshall/unmarshall data from CSV and to JSON,
+       only where the standard library cannot do it automatically.
+* Simple, reliable, command-line / front-end interface.
+
+
+
+Future improvements / wishlist
+==============================
+
+* Multiple currencies
+* Use go channels to create parallel input / parsing / output, for better
+  overall throughput.
