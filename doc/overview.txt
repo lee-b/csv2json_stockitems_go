@@ -26,21 +26,33 @@ Goals
 Non-goals & assumptions
 =======================
 
-* Currency tracking and conversion is not a goal: input file has currency symbols,
-  but they are all the same (dollars) and the output doesn't have an notion of
-  currency, which suggests that this is not cared about for the purposes of the
-  test.
-* Fractional quantities for stock_on_hand is not a goal.  Not specified, assumed
-  units.
+* Currency tracking and conversion is not a goal: input file has currency
+  symbols, but they are all the same (dollars) and the output doesn't have an
+  notion of currency, which suggests that this currency support is not needed
+  for the purposes of the test.
+* Quantities are assumed to be integers, as no examples are given of fractional
+  values.
+* Prices are assumed to have integer cents values (i.e., no fractions of a
+  cent), as this fits the data presented in examples.
 * Perfectly idiomatic Go (preferred style, preferred design patterns, etc.) is
   not a goal. I do not know Go yet, researching Go idioms extensively for all
   parts of the code could take too much time for the purposes of this test.
   Attempts have been made where reasonable, though, such as using JSON Reader/
   Writer, using iota rather than simply typing values, etc.
 * A serialisation-style interface to the input CSV parsing, mirroring the
-  marshalling of JSON output, would be ideal, especially for extensibility. Only
-  a token version of this has been implemented (StockItem.Unmarshall), as it's
-  not clear how future extensibility should work at present.
+  marshalling of JSON output, would be ideal, especially for extensibility.
+  Only a token version of this has been implemented (StockItem.Unmarshall), as
+  it's not clear how future extensibility should work at present.
+* Assumed that modifiers (which are paired fields) can either be specified, or
+  not specified, but that one field should not be present without the other.
+  If this happens, an error is reported
+* The sample data, provided as a PDF from Word, contained soft-hypens in place
+  of ASCII minus signs.  I've assumed ASCII minus signs were intended.
+* JSON does not support "nil", except as a string, but it does support null.
+  I've assumed that null was meant, to be compliant with standard JSON, and
+  take advantage of automatic type-checking across languages, etc.  If nil was
+  truly intended, I believe it could be easily implemented by providing
+  a custom marshaller for the Monetary types in question.
 
 
 Design

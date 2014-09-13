@@ -5,7 +5,7 @@ if [ "$GOPATH" != "$(readlink -f $(dirname '$0'))" ]; then
     exit 20
 fi
 
-go test lbgotest.com/lb/stockdatalib
+go test -v lbgotest.com/lb/stockdatalib
 go install lbgotest.com/lb/stockdatalib
 go install lbgotest.com/lb/csv2json
 

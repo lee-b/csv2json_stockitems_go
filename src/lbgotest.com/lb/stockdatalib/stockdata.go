@@ -1,4 +1,4 @@
-package stockdatalib
+﻿package stockdatalib
 
 import (
 	"encoding/csv"
@@ -11,6 +11,8 @@ import (
 type Cents int64
 
 type PriceType int8
+
+type Quantity int64
 
 const (
 	PT_SYSTEM = iota
@@ -46,9 +48,20 @@ func PriceTypeFromString(s *string) (*PriceType, error) {
 	return &pt, nil
 }
 
-type Modifier struct {
-	name  string
-	price Cents
+func QuantityFromString(s *string) (*Quantity, error) {
+	if len(*s) == 0 {
+		// no quantity, but that's OK
+		return nil, nil
+	}
+
+	val, err := strconv.ParseInt(*s, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+
+	quantity := Quantity(val)
+
+	return &quantity, nil
 }
 
 type ItemId int64
@@ -69,52 +82,81 @@ type StockItem struct {
 	price            *Cents
 	cost             *Cents
 	price_type       PriceType
-	quantity_on_hand *int64
-	modifiers        []Modifier
+	quantity_on_hand *Quantity
+	modifiers        [4]Modifier
 }
 
-func CentsFromCsv(s *string) (*Cents, error) {
+func CentsFromDollarString(s *string) (*Cents, error) {
 	//
 	// parse "$1.99" into Cents(199)
 	//
+	// NOTE: I do it this way because strconv.ParseFloat() would
+	//       introduce precision errors
+	//
 
-	if len(*s) == 0 {
-		// value is empty, so we set the
-		// cents pointer to nil.
-		return nil, nil
+	str := (*s)[:]
+
+	is_negative := false
+
+	// strip the minus and set a flag for it, if it exists
+	if str[0] == '-' {
+		is_negative = true
+		str = str[1:]
 	}
 
-	if (*s)[0] != '$' {
-		// handling other currencies are out of scope for
-		// the test assumptions
-		return nil, errors.New("Unrecognised currency!")
+	// expect and handle the dollar sign, or generate an error
+	if str[0] == '$' {
+		str = str[1:]
+	} else {
+		// expected a dollar, didn't see one
+		err_msg := fmt.Sprintf("No dollar sign at '%x' from price string '%s'. Perhaps this is an unhandled currency?  Currency symbols are expected.", str, *s)
+		return nil, errors.New(err_msg)
 	}
 
-	// remove dollar sign, now we know it's there
-	val_str := (*s)[1:]
-
-	// get integer and fractional parts
-	parts := strings.Split(val_str, ".")
-	if len(parts) < 1 {
-		return nil, errors.New("Price is empty!")
+	parts := strings.Split(str, ".")
+	num_parts := len(parts)
+	if num_parts == 0 || num_parts > 2 {
+		err_msg := fmt.Sprintf("too many decimal points in currency value '%s'", *s)
+		return nil, errors.New(err_msg)
 	}
 
-	int_part, int_part_err := strconv.ParseInt(parts[0], 10, 64)
-	if int_part_err == nil {
-		return nil, int_part_err
+	// handle the integer part (dollars)
+	dollar_val, dollar_err := strconv.ParseInt(parts[0], 10, 64)
+	if dollar_err != nil {
+		err_msg := fmt.Sprintf("Couldn't parse integer part ('%s') of dollar value '%s'", parts[0], *s)
+		return nil, errors.New(err_msg)
 	}
 
-	frac_part, frac_part_err := strconv.ParseInt(parts[1], 10, 64)
-	if frac_part_err == nil {
-		return nil, frac_part_err
+	var frac_val int64 = 0
+	var frac_err error = nil
+
+	if num_parts == 2 {
+		// handle the integer part (dollars)
+		frac_val, frac_err = strconv.ParseInt(parts[1], 10, 64)
+		if frac_err != nil {
+			err_msg := fmt.Sprintf("Couldn't parse fractional part ('%s') of dollar value '%s'", parts[1], *s)
+			return nil, errors.New(err_msg)
+		}
 	}
 
-	val := int64(int_part * 100)
-	val = val + frac_part
+	if frac_val < 0 || frac_val > 99 {
+		if frac_err != nil {
+			err_msg := fmt.Sprintf("Fractional part of dollar value '%s' does NOT appear to be a valid number of cents.  0-99 is assumed!", *s)
+			return nil, errors.New(err_msg)
+		}
+	}
 
-	cents := Cents(val)
+	val := (dollar_val * 100) + frac_val
 
-	return &cents, nil
+	// flip the value's sign if we saw a minus in the string
+	if is_negative {
+		val = -val
+	}
+
+	cents := new(Cents)
+	*cents = Cents(val)
+
+	return cents, nil
 }
 
 func VerifyCsvFields(reader csv.Reader) error {
@@ -158,15 +200,50 @@ func VerifyCsvFields(reader csv.Reader) error {
 	return nil
 }
 
+type Modifier struct {
+	name  *string
+	price Cents
+}
+
+func ModifierFromStrings(name_str_ptr, price_str_ptr *string) (*Modifier, error) {
+	if len(*name_str_ptr) == 0 {
+		// no modifier entry, so just return an empty one,
+		// with no error
+		return &Modifier{nil, 0}, nil
+	}
+
+	cents_ptr, cents_err := CentsFromDollarString(price_str_ptr)
+	if cents_err != nil {
+		return nil, cents_err
+	}
+
+	if cents_ptr == nil {
+		err_msg := fmt.Sprintf("No cents found in dollar string %s, for modifier %s.  Cents are expected here.", *price_str_ptr, *name_str_ptr)
+		err := errors.New(err_msg)
+		return nil, err
+	}
+
+	mod_ptr := new(Modifier)
+	mod_ptr.name = name_str_ptr
+	mod_ptr.price = *cents_ptr
+
+	return mod_ptr, nil
+}
+
 func (item *StockItem) Unmarshall(reader csv.Reader) error {
+	//
 	// De-serialise the CSV row into a StockItem object.  Ensure
 	// data is valid in the process, BEFORE storing it as a valid
 	// object in mem.
+	//
 
 	raw_dat, read_err := reader.Read()
 	if read_err != nil {
 		return read_err
 	}
+
+	// used frequently later
+	raw_dat_len := len(raw_dat)
 
 	// parse the fields out of the CSV string values
 	item_id_int64, item_id_err := strconv.ParseInt(raw_dat[0], 10, 64)
@@ -178,13 +255,13 @@ func (item *StockItem) Unmarshall(reader csv.Reader) error {
 	item.description = raw_dat[1]
 
 	var price_err error
-	item.price, price_err = CentsFromCsv(&raw_dat[2])
+	item.price, price_err = CentsFromDollarString(&raw_dat[2])
 	if price_err != nil {
 		return price_err
 	}
 
 	var cost_err error
-	item.cost, cost_err = CentsFromCsv(&raw_dat[3])
+	item.cost, cost_err = CentsFromDollarString(&raw_dat[3])
 	if cost_err != nil {
 		return cost_err
 	}
@@ -194,6 +271,42 @@ func (item *StockItem) Unmarshall(reader csv.Reader) error {
 		return price_type_err
 	}
 	item.price_type = *price_type_ptr
+
+	quantity_ptr, quantity_err := QuantityFromString(&raw_dat[5])
+	if quantity_err != nil {
+		return quantity_err
+	}
+	item.quantity_on_hand = quantity_ptr
+
+	// load modifiers
+	const all_modifiers_start_idx = 6
+
+	for i := 0; i <= 3; i++ {
+		modifier_idx := all_modifiers_start_idx + (i * 2)
+
+		if raw_dat_len-1 < modifier_idx {
+			// modifier not present; quit loop here
+			break
+		}
+
+		if raw_dat_len-1 < modifier_idx+1 {
+			// half of the modifier is present, so report an error
+			name := raw_dat[modifier_idx]
+			err_msg := fmt.Sprintf("StockItem id %d's modifier #%d (name: %s) has only one of two fields present. Expected all fields, or none.", name, item.item_id, i)
+			return errors.New(err_msg)
+		}
+
+		name := &raw_dat[modifier_idx]
+		price := &raw_dat[modifier_idx+1]
+
+		mod, mod_error := ModifierFromStrings(name, price)
+		if mod_error != nil {
+			return mod_error
+		}
+
+		// mod loaded; set in modifiers array
+		item.modifiers[i] = *mod
+	}
 
 	return nil
 }
