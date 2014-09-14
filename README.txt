@@ -23,7 +23,10 @@ To check this output against the given example, you can run:
 
     diff test_scenarios/given_example/expected_output.json test_scenarios/given_example/output.json
 
-Substitute colordiff, meld, vimdiff, etc. for diff, as you prefer.
+Substitute colordiff, meld, vimdiff, etc. for diff, as you prefer.  You should
+see that there ARE differences, but only in things that are within JSON spec,
+such as quoting all strings, and using null instead of "nil".  Again,
+see overview.txt for explanations of these differences.
 
 
 Note that this code includes a backend library. ./build.sh will generate API
