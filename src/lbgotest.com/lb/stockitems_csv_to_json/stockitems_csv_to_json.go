@@ -157,6 +157,13 @@ func doConversion(srcFile string, dstFile string, verbose bool) error {
 			exitError(encode_err)
 		}
 
+		// write the record separator if needed, and if not,
+		// flag that we'll need one next time
+		if at_least_one_item_written {
+			// separate items
+			dstFp.WriteString(",\n    ")
+		}
+
 		_, write_err := dstFp.Write(json_bytes)
 		if write_err != nil {
 			exitError(write_err)
@@ -167,14 +174,7 @@ func doConversion(srcFile string, dstFile string, verbose bool) error {
 			fmt.Fprintf(os.Stderr, "converted.\n")
 		}
 
-		// write the record separator if needed, and if not,
-		// flag that we'll need one next time
-		if at_least_one_item_written {
-			// separate items
-			dstFp.WriteString(",\n    ")
-		} else {
-			at_least_one_item_written = true
-		}
+		at_least_one_item_written = true
 	}
 
 	// end the json output file
