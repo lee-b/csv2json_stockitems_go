@@ -1,51 +1,92 @@
 Overview
 ========
 
+The main components here are:
+
+   + src/lbgotest.com/lb/stockdatalib:
+
+      This Go library provides:
+
+         - An internal representation of StockItem objects, and associate
+           datatypes such as Price values.
+         - Functions for reading them from csv.Reader objects
+         - MarshalJSON implementations for some types, such as Prices, to
+           format them as required in JSON output.
+
+      This library supports a streaming API, meaning that you can load one
+      item at a time, work with it, and write it out.  All data does NOT
+      need to be kept in memory at once.
+
+   + csv_items_to_json:
+
+      This command-line tool, a thin wrapper over the above library, reads
+      stock items from a specifically formatted (as specified) CSV file, and
+      writes them to a JSON file.  Both filenames are taken on the command
+      line.
+
+
 Goals
 =====
 
-* Import stock item data from csv format
-* Export stock item data to json format
-* Extensible code (as per requirements)
+* Import stock item data from CSV format
+* Export stock item data to JSON format
+* Extensible code (as per requirements), which I take to mean:
+  - re-usable input parsing -- parsing to a usable internal data format
+  - re-usable output -- output from a usable internal data format
+* "Production-ready", which I take to mean:
+  - sane, usable, safe, pre-parsed internal data format:
+      + nil, rather than the string value "nil"
+      + proper numeric values rather than unparsed string values with or
+        without currency symbols
+      + fixed-precision or integer format currency values, rather than
+        floating point values, which may have precision problems.
+  - VALIDATED data, RATHER THAN BLIND / GENERIC CONVERSION (which would have
+    been much easier, faster, and more reusable, in many ways, but also less
+    useful in terms of reusable INTERNAL stock item data)
+
 * Use go standard library facilities for actual csv/json I/O (to minimise new
   code, and assist with extensibility)
 * Reusable code (partly to meet "extensible code", partly as best-practice)
-* Precision control in currency values, to avoid floating point precision issues.
+* Precision control in currency values, to avoid floating point precision
+  issues.
 * Unit-tested
 * Functionally tested on actual data files
 * Verified against given scenario
 * Verified on larger data set, proving streaming/big data should work
-* "Production-ready", although this is a vague term without knowing requirements
-  of the production environment in question.  The requirements I've assumed are:
+* "Production-ready", although this is a vague term without knowing
+  requirements of the production environment in question.  The requirements
+  I've assumed are:
     + Input validation / security
-    + Big data (stream-based processing rather than loading all data into memory
-       at once)
-    + Reliability, as specified above in terms of tests, required features, etc.
+    + Big data (stream-based processing rather than loading all data into
+      memory at once)
+    + Reliability, as specified above in terms of tests, required features,
+      etc.
 
 
 Non-goals & assumptions
 =======================
 
-* Currency tracking and conversion is not a goal: input file has currency
-  symbols, but they are all the same (dollars) and the output doesn't have an
-  notion of currency, which suggests that this currency support is not needed
-  for the purposes of the test.
-* Quantities are assumed to be integers, as no examples are given of fractional
-  values.
-* Prices are assumed to have integer cents values (i.e., no fractions of a
-  cent), as this fits the data presented in examples.
-* Perfectly idiomatic Go (preferred style, preferred design patterns, etc.) is
-  not a goal. I do not know Go yet, researching Go idioms extensively for all
-  parts of the code could take too much time for the purposes of this test.
-  Attempts have been made where reasonable, though, such as using JSON Reader/
-  Writer, using iota rather than simply typing values, etc.
-* A serialisation-style interface to the input CSV parsing, mirroring the
-  marshalling of JSON output, would be ideal, especially for extensibility.
-  Only a token version of this has been implemented (StockItem.Unmarshall), as
-  it's not clear how future extensibility should work at present.
-* Assumed that modifiers (which are paired fields) can either be specified, or
-  not specified, but that one field should not be present without the other.
-  If this happens, an error is reported
+* First and foremost, this is taken to be a test of programming skill and
+  professionalism, WITHIN the context of the company setting the test, and in
+  the
+  context of sales data manipulation.  It is NOT taken as a request to create
+  an entirely generic data conversion tool.
+  As such, I have opted to write code which performs proper stock item
+  validation etc., rather than a "quick hack that simply sucks in data and
+  spits it out again", so to speak, with little regard for the data being
+  manipulated.
+  The important implication is that, ultimately, "code reusability" in this
+  context, should favour building useful internal sales data and frameworks
+  around such data, rather than building generically reusable CSV / JSON
+  tools.
+  If SUCH generic tools were needed, they almost certainly already exist, and
+  should be used off-the-shelf.  However, if they do not exist, they COULD be
+  created. Covering all use cases with such a generic tool is assumed to be
+  unhelpful and a wasteful distraction, for this particular use case, though.
+* Very specific output examples are given, in a particular variant of JSON
+  which uses unquoted, single-word strings, for example.  This is assumed to
+  be an unimportant, "over-specified", detail, as the ultimate goal, as
+  specified, seems to to be creation of JSON-compatible data.
 * The sample data, provided as a PDF from Word, contained soft-hypens in place
   of ASCII minus signs.  I've assumed ASCII minus signs were intended.
 * JSON does not support "nil", except as a string, but it does support null.
@@ -53,6 +94,44 @@ Non-goals & assumptions
   take advantage of automatic type-checking across languages, etc.  If nil was
   truly intended, I believe it could be easily implemented by providing
   a custom marshaller for the Monetary types in question.
+* From the sample data, it appears that stock items have at least 5 fields (up
+  to pruce_type).  Since no defaults are provided in the task specification
+  for price_type, quantity, etc., it's unclear how this should be populated
+  otherwise.  So, this is assumed, and items with less fields will NOT parse
+  with this code, as-is.  Defaults could be easily added if needed, though.
+* The input data's "cost" field varies between beginning with a dollar sign,
+  and not having a dollar sign.  It's assumed that all prices may have or not
+  have dollar signs, and that, if they don't, they are parsed the same way (as
+  decimal dollar values), otherwise: i.e., that "80" == "$80", "80.10" ==
+  "$80.10", "80.1" == "$80.10", etc.
+* Currency tracking and conversion is not a goal: input file OFTEN has
+  currency symbols, but they are all the same (dollars) and the output doesn't
+  seem to have a notion of currency, which suggests that this currency support
+  is not needed for the purposes of the test.  Another interpretation would be
+  that the intention is to convert the given input currency to local currency.
+  However, input currency is NOT always given, and no data necessary for
+  conversion (currency conversion rates, conversion data source, etc.) is
+  given.
+* "quantity_on_hand" field values are assumed to be integers, as I saw no
+  examples of fractional values in this field.
+* Prices are assumed to have integer cents values (i.e., no fractions of a
+  cent), as this fits the data presented in examples, and logically, makes
+  sense for most retail purposes.
+* Perfectly idiomatic Go (preferred style, preferred design patterns, etc.) is
+  not a goal. I do not know Go yet, and researching Go idioms extensively for
+  all parts of the code could take too much time for the purposes of this
+  test.
+  Attempts at idiomatic code have been made where reasonable, though, such as
+  using JSON Reader / Writer, using iota rather than simply typing values,
+  etc.
+* A serialisation-style interface to the input CSV parsing, mirroring the
+  marshalling of JSON output, would be ideal, especially for extensibility.
+  Only a token version of this has been implemented (StockItem.Unmarshall), as
+  it's not clear how future extensibility should work at present.
+* I've assumed that "modifier" entries (which are paired fields:
+  modifier_1_name, and modifier_1_price, for example) can either be specified,
+  or not specified, but that one field should not be present without the
+  other. If this is detected during input parsing, then an error is reported.
 
 
 Design
@@ -63,7 +142,8 @@ Design
   without calling a command line program.  Library contains:
     + a definition of the StockItem structure
     + Sub-definitions for:
-       - Monetary types (to avoid precision issues and assist with currency removal from csv)
+       - Monetary types (to avoid precision issues and assist with currency
+         removal from csv)
        - Modifiers
     + Helper functions to marshall/unmarshall data from CSV and to JSON,
       only where the standard library cannot do it automatically.

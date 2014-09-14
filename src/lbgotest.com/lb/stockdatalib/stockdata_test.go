@@ -2,7 +2,6 @@ package stockdatalib
 
 import (
 	"encoding/csv"
-	//	"encoding/json"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -25,7 +24,7 @@ func LoadFirstItem(t *testing.T) *StockItem {
 	}
 
 	stock_item := new(StockItem)
-	unmarshall_err := stock_item.Unmarshall(*stock_dat_reader)
+	unmarshall_err := stock_item.ReadItem(*stock_dat_reader)
 	if unmarshall_err != nil {
 		t.Error(unmarshall_err)
 	}
@@ -87,9 +86,9 @@ func TestStockDataCSVUnmarshalledPriceType(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
 	switch stock_item.Price_type {
-	case PT_SYSTEM:
+	case "system":
 		// OK
-	case PT_OPEN:
+	case "open":
 		// OK
 	default:
 		// unknown price type
@@ -100,10 +99,10 @@ func TestStockDataCSVUnmarshalledPriceType(t *testing.T) {
 func TestStockDataJsonEncode(t *testing.T) {
 	stock_item := LoadFirstItem(t)
 
-	b, err := json.Marshal(stock_item)
+	b, err := json.MarshalIndent(stock_item, "", "    ")
 	if err != nil {
 		t.Error(err)
 	} else {
-		t.Logf("JSON-encoded StockData looks like:\n\n\t%s\n\n", b)
+		t.Logf("JSON-encoded StockData looks like:\n\n%s\n\n", b)
 	}
 }
