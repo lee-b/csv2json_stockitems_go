@@ -42,7 +42,7 @@ func exitUsage(msg *string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "Usage:\n\n")
-	fmt.Fprintf(os.Stderr, "\t%s srcFile dstFile\n\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "\t%s [--verbose] srcFile dstFile\n\n", os.Args[0])
 
 	os.Exit(EXIT_ERROR)
 }
