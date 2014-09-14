@@ -8,4 +8,5 @@ fi
 go test -v lbgotest.com/lb/stockdatalib
 go install lbgotest.com/lb/stockdatalib
 go install lbgotest.com/lb/stockitems_csv_to_json
+godoc -url="http://localhost:6060/pkg/lbgotest.com/lb/stockdatalib/" > doc/API/index.html
 

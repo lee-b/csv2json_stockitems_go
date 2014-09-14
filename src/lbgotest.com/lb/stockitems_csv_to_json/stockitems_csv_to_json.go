@@ -1,3 +1,14 @@
+//
+// Converts a CSV-formatted stock item file to JSON format.
+//
+// This will handle large data files, bigger than memory.
+//
+// Build it, and then run it with no arguments for usage
+// information.
+//
+// Copyright (c) 2014 by Lee Braiden (leebraid@gmail.com)
+//
+
 package main
 
 import (
@@ -10,6 +21,15 @@ import (
 	"strings"
 )
 
+// Don't know if there's a better way to get the proper
+// exit codes for the os in question in Go.  I figure this
+// will do for all intents and purposes.
+const (
+	EXIT_SUCCESS = 0
+	EXIT_ERROR   = 1
+)
+
+// small struct to hold a few configuration variables
 type Config struct {
 	SrcFile string
 	DstFile string
@@ -24,14 +44,15 @@ func exitUsage(msg *string) {
 	fmt.Fprintf(os.Stderr, "Usage:\n\n")
 	fmt.Fprintf(os.Stderr, "\t%s srcFile dstFile\n\n", os.Args[0])
 
-	os.Exit(1)
+	os.Exit(EXIT_ERROR)
 }
 
 func exitError(err error) {
 	fmt.Fprintf(os.Stderr, "ERROR:\n\n\t%s\n\n", err)
-	os.Exit(20)
+	os.Exit(EXIT_ERROR)
 }
 
+// read the config / operational arguments from the command line
 func getConfig() *Config {
 	// NOTE: Exits with usage information if config is wrong,
 	//       rather than returning, so no need for an error
@@ -73,6 +94,8 @@ func getConfig() *Config {
 	return &conf
 }
 
+// Main record-conversion loop, which opens files, reads items, writes them,
+// and closes files again.
 func doConversion(srcFile string, dstFile string, verbose bool) error {
 	srcFp, err := os.Open(srcFile)
 	if err != nil {
@@ -122,6 +145,8 @@ func doConversion(srcFile string, dstFile string, verbose bool) error {
 			}
 		}
 
+		// Let the user know what we're currently processing, if verbose mode
+		// is enabled.
 		if verbose {
 			fmt.Fprintf(os.Stderr, "   Item %10d: %-50s... ", stock_item.Item_id, stock_item.Description)
 		}
@@ -137,10 +162,13 @@ func doConversion(srcFile string, dstFile string, verbose bool) error {
 			exitError(write_err)
 		}
 
+		// finish the current status line, if in verbose mode
 		if verbose {
 			fmt.Fprintf(os.Stderr, "converted.\n")
 		}
 
+		// write the record separator if needed, and if not,
+		// flag that we'll need one next time
 		if at_least_one_item_written {
 			// separate items
 			dstFp.WriteString(",\n    ")
@@ -156,7 +184,6 @@ func doConversion(srcFile string, dstFile string, verbose bool) error {
 }
 
 func main() {
-	rc := 0
 	conf := getConfig()
 
 	if conf.Verbose {
@@ -174,5 +201,6 @@ func main() {
 		}
 	}
 
-	os.Exit(rc)
+	// if we reach here, all went well
+	os.Exit(EXIT_SUCCESS)
 }

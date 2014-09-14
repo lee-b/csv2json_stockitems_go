@@ -29,10 +29,13 @@ Goals
 =====
 
 * Import stock item data from CSV format
+
 * Export stock item data to JSON format
+
 * Extensible code (as per requirements), which I take to mean:
   - re-usable input parsing -- parsing to a usable internal data format
   - re-usable output -- output from a usable internal data format
+
 * "Production-ready", which I take to mean:
   - sane, usable, safe, pre-parsed internal data format:
       + nil, rather than the string value "nil"
@@ -46,13 +49,20 @@ Goals
 
 * Use go standard library facilities for actual csv/json I/O (to minimise new
   code, and assist with extensibility)
+
 * Reusable code (partly to meet "extensible code", partly as best-practice)
+
 * Precision control in currency values, to avoid floating point precision
   issues.
+
 * Unit-tested
+
 * Functionally tested on actual data files
+
 * Verified against given scenario
+
 * Verified on larger data set, proving streaming/big data should work
+
 * "Production-ready", although this is a vague term without knowing
   requirements of the production environment in question.  The requirements
   I've assumed are:
@@ -60,7 +70,7 @@ Goals
     + Big data (stream-based processing rather than loading all data into
       memory at once)
     + Reliability, as specified above in terms of tests, required features,
-      etc.
+       etc.
 
 
 Non-goals & assumptions
@@ -83,27 +93,65 @@ Non-goals & assumptions
   should be used off-the-shelf.  However, if they do not exist, they COULD be
   created. Covering all use cases with such a generic tool is assumed to be
   unhelpful and a wasteful distraction, for this particular use case, though.
+
+* JSON does not have a keyword "nil", although it's supported as a string, but
+  it DOES recognise the special keyword support "null".  This presents two
+  options, neither of which is ideal, and so a choice had to be made:
+
+      Choice 1:
+
+          Ignore JSON's support for null, despite the overarching goal to
+          produce a **JSON** file (as opposed to a file in a format SIMILAR
+          to JSON.  Ignore Go's built-in support for marshalling structs,
+          and implement a custom marshaller to output the non-compliant
+          near-JSON format.  Note that this would also conflict with the goal
+          of reusability, since it means having to implement custom
+          JSON parsers for all output data, and might lock all future
+          implementations / rewrites of this tool into creating similarly
+          non-standard files.
+
+      Choice 2:
+
+          Assume that null was meant rather than nil in the example output
+          file -- perhaps that nil was written because it is called this in
+          Go, rather than JSON.  Assume that the intention is to create
+          STANDARD, compatible, JSON, following established internet
+          RFCs.  This would also assist with the goal of reusable code.
+     
+  Rather than blindly break a standard format, which, in my experience, is
+  the cause of many code maintence and incompatibility issues, I have assumed
+  that choice 2 was intended, and would be preferred here.
+
+  If choice 1 was, in fact, intended, then note that this would have been
+  very easy to accomplish, by implementing a MarshalJSON() method for the
+  StockItem class, and adding JSON-formatted bytes manually for the overall
+  object, along with calling Marshal() to obtain the bytes for subfields.
+  Something similar IS done in the top-level command-line tool, to wrap the
+  individual StockItems in JSON list.
+
+  Of course, in real, day-to-day work, it would be easy to check this with
+  whoever wrote the format specification.
+
+* The sample data, provided as a PDF from Word, contained soft-hypens in place
+  of ASCII minus signs.  I've assumed ASCII minus signs were intended.
+
 * Very specific output examples are given, in a particular variant of JSON
   which uses unquoted, single-word strings, for example.  This is assumed to
   be an unimportant, "over-specified", detail, as the ultimate goal, as
   specified, seems to to be creation of JSON-compatible data.
-* The sample data, provided as a PDF from Word, contained soft-hypens in place
-  of ASCII minus signs.  I've assumed ASCII minus signs were intended.
-* JSON does not support "nil", except as a string, but it does support null.
-  I've assumed that null was meant, to be compliant with standard JSON, and
-  take advantage of automatic type-checking across languages, etc.  If nil was
-  truly intended, I believe it could be easily implemented by providing
-  a custom marshaller for the Monetary types in question.
+
 * From the sample data, it appears that stock items have at least 5 fields (up
   to pruce_type).  Since no defaults are provided in the task specification
   for price_type, quantity, etc., it's unclear how this should be populated
   otherwise.  So, this is assumed, and items with less fields will NOT parse
   with this code, as-is.  Defaults could be easily added if needed, though.
+
 * The input data's "cost" field varies between beginning with a dollar sign,
   and not having a dollar sign.  It's assumed that all prices may have or not
   have dollar signs, and that, if they don't, they are parsed the same way (as
   decimal dollar values), otherwise: i.e., that "80" == "$80", "80.10" ==
   "$80.10", "80.1" == "$80.10", etc.
+
 * Currency tracking and conversion is not a goal: input file OFTEN has
   currency symbols, but they are all the same (dollars) and the output doesn't
   seem to have a notion of currency, which suggests that this currency support
@@ -112,11 +160,14 @@ Non-goals & assumptions
   However, input currency is NOT always given, and no data necessary for
   conversion (currency conversion rates, conversion data source, etc.) is
   given.
+
 * "quantity_on_hand" field values are assumed to be integers, as I saw no
   examples of fractional values in this field.
+
 * Prices are assumed to have integer cents values (i.e., no fractions of a
   cent), as this fits the data presented in examples, and logically, makes
   sense for most retail purposes.
+
 * Perfectly idiomatic Go (preferred style, preferred design patterns, etc.) is
   not a goal. I do not know Go yet, and researching Go idioms extensively for
   all parts of the code could take too much time for the purposes of this
@@ -124,36 +175,25 @@ Non-goals & assumptions
   Attempts at idiomatic code have been made where reasonable, though, such as
   using JSON Reader / Writer, using iota rather than simply typing values,
   etc.
+
 * A serialisation-style interface to the input CSV parsing, mirroring the
   marshalling of JSON output, would be ideal, especially for extensibility.
   Only a token version of this has been implemented (StockItem.Unmarshall), as
   it's not clear how future extensibility should work at present.
+
 * I've assumed that "modifier" entries (which are paired fields:
   modifier_1_name, and modifier_1_price, for example) can either be specified,
   or not specified, but that one field should not be present without the
   other. If this is detected during input parsing, then an error is reported.
 
 
-Design
-======
-
-* Library of reusable code, independent of front-end, allowing code to be
-  used in larger applications, and extended to new models / data types,
-  without calling a command line program.  Library contains:
-    + a definition of the StockItem structure
-    + Sub-definitions for:
-       - Monetary types (to avoid precision issues and assist with currency
-         removal from csv)
-       - Modifiers
-    + Helper functions to marshall/unmarshall data from CSV and to JSON,
-      only where the standard library cannot do it automatically.
-* Simple, reliable, command-line / front-end interface.
-
-
-
 Future improvements / wishlist
 ==============================
 
 * Multiple currencies (swap out Cents for a Monetary type)
-* Use go channels to create parallel input / parsing / output, for better
-  overall throughput.
+* Add input & output file buffering for improved performance
+* Use Go channels to create parallel input / parsing / output, for better
+  overall throughput.  To do this without a genuine need may be premature
+  optimisation, however.
+
+

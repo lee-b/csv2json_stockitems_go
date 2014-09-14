@@ -1,4 +1,10 @@
-﻿package stockdatalib
+﻿//
+// Basic library for handling StockItem data in memory, loading
+// from CSV, and writing to JSON format.
+//
+// Copyright (c) 2014 by Lee Braiden (leebraid@gmail.com)
+//
+package stockdatalib
 
 import (
 	"encoding/csv"
@@ -9,10 +15,14 @@ import (
 	"strings"
 )
 
+// Monetary value, in cents rather than dollars
+// This avoids precision issues with floating-point values.
 type Cents int64
 
+// number of items of stock
 type Quantity int64
 
+// Parses a Quantity from a string
 func QuantityFromString(s string) (*Quantity, error) {
 	if len(s) == 0 {
 		// no quantity, but that's OK
@@ -29,18 +39,27 @@ func QuantityFromString(s string) (*Quantity, error) {
 	return &quantity, nil
 }
 
+// (presumably) unique identifier for an item of stock, at least within
+// one organisation
 type ItemId int64
 
-// NOTE: it'd probably be more memory efficient and
-//       require less memory management to have
-//       price, cost, etc. be structs with a boolean
-//		 is_set flag, rather than hold points to the
-//       values and do allocation for each price.
-//       However, for the scope of test, this seems
-//       like a reasonable way to get the results
-//       expected, in reasonable time, without coding
-//       for problems that haven't arisen yet (aka,
-//       "You won't need it")
+// Represents an Item of stock.  Prices are represented in cents to avoid
+// floating-point rounding issues, or as nil if no such price information
+// exists.  Modifiers is a dynamically sized slice into an array of 0--4
+// Modifier items.  Quantities are represented as 64-bit integers.  Fractions
+// are assumed to be NOT needed; use smaller units in that case, presumably.
+// Negative values ARE allowed in case needed for adjustment items etc.,
+// since there is no reason to assume quantities can reach the max / min of
+// a 64-bit signed integer's range.
+//
+// NOTE: it'd probably be more memory efficient and require less memory-
+//       management to have price, cost, etc. be structs with a boolean
+//		 is_set flag, rather than hold points to the values and do allocation
+//       for each price. However, for the scope of test, this seems like a
+//       reasonable internal representation, to get the results expected in
+//       reasonable time via encoding/json, without coding for problems that
+//       haven't arisen yet (aka, YAGNI / "You ain't gonna need it")
+//
 type StockItem struct {
 	Item_id          ItemId    `json:"id"`
 	Description      string    `json:"description"`
@@ -51,6 +70,9 @@ type StockItem struct {
 	Modifiers        []Modifier
 }
 
+// JSON encoder for Cents types.  This outputs the cent value as a dollar
+// value, with 2 digits for cents, and no dollar sign.  If negative, a minus
+// sign is prepended.
 func (c *Cents) MarshalJSON() ([]byte, error) {
 	// NOTE: I wanted to override the marshalling of the POINTER type itself
 	//       here, hoping encoders/json would look at the field type, then
@@ -75,20 +97,23 @@ func (c *Cents) MarshalJSON() ([]byte, error) {
 	return []byte(c_as_str), nil
 }
 
+// Parse values such as "-$1.99" into Cents(-199)
+//
+// NOTE: I do it this way because strconv.ParseFloat() would
+//       introduce precision errors.  Another option might be Sscanf(), but
+//       this should be faster for all we need to do.
+//
 func CentsFromDollarString(s string) (*Cents, error) {
-	//
-	// parse "$1.99" into Cents(199)
-	//
-	// NOTE: I do it this way because strconv.ParseFloat() would
-	//       introduce precision errors
-	//
-
+	// early exit with nil cents value, if the string is empty
 	if len(s) == 0 {
 		return nil, nil
 	}
 
+	// default to positive numbers, unless we see a minus sign
 	is_negative := false
 
+	// get a slice from the string value, so we can modify the slice / view
+	// of the string, as we parse more of it
 	str := s[:]
 
 	// strip the minus and set a flag for it, if it exists
@@ -107,6 +132,8 @@ func CentsFromDollarString(s string) (*Cents, error) {
 		// missing dollar sign, but some data is like this.  Continue, regardless.
 	}
 
+	// split the x.xx value into whole dollars and fractions (dollars and
+	// cents)
 	parts := strings.Split(str, ".")
 	num_parts := len(parts)
 	if num_parts == 0 || num_parts > 2 {
@@ -144,6 +171,8 @@ func CentsFromDollarString(s string) (*Cents, error) {
 		}
 	}
 
+	// build the cents value from individual dollar and fractions-of-dollar
+	// values
 	val := (dollar_val * 100) + frac_val
 
 	// flip the value's sign if we saw a minus in the string
@@ -157,6 +186,9 @@ func CentsFromDollarString(s string) (*Cents, error) {
 	return cents, nil
 }
 
+// Reads the first (title) row of a CSV StockItems file, and verifies that the
+// field titles match what's expected.  Essentially, this checks that we're
+// loading the right TYPE of file, before reading all the items.
 func VerifyCsvFields(reader csv.Reader) error {
 	raw_dat, err := reader.Read()
 	if err != nil {
@@ -198,16 +230,17 @@ func VerifyCsvFields(reader csv.Reader) error {
 	return nil
 }
 
+// Individual modifiers for an item.
 type Modifier struct {
-	Name  *string
+	Name  string
 	Price Cents
 }
 
+// Parse two strings into a Modifier object
 func ModifierFromStrings(name_str, price_str string) (*Modifier, error) {
 	if len(name_str) == 0 {
-		// no modifier entry, so just return an empty one,
-		// with no error
-		return &Modifier{nil, 0}, nil
+		// no modifier name, so raise an error
+		return nil, errors.New("Attempted to create a modifier with no name.")
 	}
 
 	cents_ptr, cents_err := CentsFromDollarString(price_str)
@@ -222,12 +255,14 @@ func ModifierFromStrings(name_str, price_str string) (*Modifier, error) {
 	}
 
 	mod_ptr := new(Modifier)
-	mod_ptr.Name = &name_str
+	mod_ptr.Name = name_str
 	mod_ptr.Price = *cents_ptr
 
 	return mod_ptr, nil
 }
 
+// Read an individual StockItem record from a CSV file, parsing it into
+// a higher-level StockItem struct.
 func (item *StockItem) ReadItem(reader csv.Reader) error {
 	//
 	// De-serialise the CSV row into a StockItem object.  Ensure
@@ -293,13 +328,19 @@ func (item *StockItem) ReadItem(reader csv.Reader) error {
 	// load modifiers
 	const all_modifiers_start_idx = 6
 
+	// calculate how many modifiers we have (we should have n modifier fields,
+	// which are in pairs of 2, so n / 2 complete modifier entries)
 	num_modifiers := (raw_dat_len - all_modifiers_start_idx) / 2
 	if num_modifiers > 4 {
 		num_modifiers = 4
 	}
 
+	// make the list of modifiers as big as it can be, based on the number of
+	// modifier fields present
 	item.Modifiers = make([]Modifier, num_modifiers)
 
+	// loop over all modifiers, extracting and parsing their field pairs into
+	// Modifier structs, and store them in item.Modifiers
 	for i := 0; i <= num_modifiers; i++ {
 		modifier_idx := all_modifiers_start_idx + (i * 2)
 
@@ -327,5 +368,6 @@ func (item *StockItem) ReadItem(reader csv.Reader) error {
 		item.Modifiers[i] = *mod
 	}
 
+	// If we reach here, everything went well.  Return non-error.
 	return nil
 }
